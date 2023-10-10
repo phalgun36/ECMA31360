@@ -25,3 +25,17 @@ library(car)
 library(ivreg)
 set.seed(36)
 ```
+
+# Question 1
+
+```{r}
+control = read.csv("nswre74_control.csv")
+treated = read.csv("nswre74_treated.csv")
+df = rbind(control, treated)
+dplyr::tally(dplyr::group_by(df, treat))
+dplyr::group_by(df, treat) %>% dplyr::summarise_all(list(mean))
+```
+
+We can insert table here/on shared Overleaf document.
+
+# Question 2
