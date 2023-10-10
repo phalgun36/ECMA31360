@@ -1,0 +1,27 @@
+---
+title: 'ECMA 31360 PSet 3'
+author: "Phalgun Garimella"
+fontsize: 12pt
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes: \usepackage{pdfpages}
+geometry: margin=0.5in
+fig_crop: no
+---
+
+```{r echo=F, include = FALSE}
+library(knitr)
+knitr::opts_chunk$set(fig.width=4, fig.height=3, message=F, warning=F)
+options(width=70, digits=4, scipen=8)
+library(mosaic)
+library(ggplot2)
+library(readxl)
+library(sandwich)
+library(lmtest)
+library(car)
+library(ivreg)
+set.seed(36)
+```
