@@ -15,7 +15,7 @@ fig_crop: no
 ```{r echo=F, include = FALSE}
 library(knitr)
 knitr::opts_chunk$set(fig.width=4, fig.height=3, message=F, warning=F)
-options(width=70, digits=4, scipen=8)
+options(width=70, digits=6, scipen=8)
 library(mosaic)
 library(ggplot2)
 library(readxl)
@@ -23,10 +23,13 @@ library(sandwich)
 library(lmtest)
 library(car)
 library(ivreg)
+library(systemfit)
 set.seed(36)
 ```
 
-# Question 1
+# Part 1: Describe the Data
+
+## Question 1
 
 ```{r}
 control = read.csv("nswre74_control.csv")
@@ -38,4 +41,101 @@ dplyr::group_by(df, treat) %>% dplyr::summarise_all(list(mean))
 
 We can insert table here/on shared Overleaf document.
 
-# Question 2
+# Part 2: Test Balance
+
+## Question 1
+
+```{r}
+columns = colnames(df)
+opvs = columns[-c(1,10)]
+p_vals = c()
+formula_list = c()
+null_system = c() # for Q2.2b
+intercepts = c() # for Q2.2b
+coefficients = c() # for Q2.2b
+for (i in opvs) {
+  formula = formula(paste(i, " ~ ", columns[1]))
+  null_formula = formula(paste(i, " ~ ", 1))
+  formula_list = c(formula_list, formula)
+  null_system = c(null_system, null_formula)
+  lm_model = lm(formula, data = df)
+  summary_coeffs = summary(lm_model)$coefficients
+  print(i)
+  print(summary_coeffs)
+  p_vals = c(p_vals, summary_coeffs[2,4])
+  intercepts = c(intercepts, summary_coeffs[1,1])
+  coefficients = c(coefficients, summary_coeffs[2,1])
+}
+```
+
+In order to make conclusions regarding balance of OPVs, let us output p-values for the 10 t-tests below for convenience:
+
+```{r}
+out = t(matrix(round(p_vals, 4)))
+colnames(out) = opvs
+rownames(out) = "p-values"
+out
+```
+
+We observe that at the 5% level, we reject the null hypothesis that the mean for `nodegree` is the same in the control and treated groups. For the 9 other OPVs, however, we fail to reject the null hypothesis that each variable's mean is the same in the control and treated groups.
+
+## Question 2
+
+### a
+
+```{r}
+sur_fit = systemfit::systemfit(formula_list, data = df, method = "SUR")
+summary(sur_fit)
+```
+
+There does not appear to be a difference between the estimated coefficients and their SEs using the SUR system and those obtained in $\textbf{Question 1}$.
+
+### b
+
+```{r}
+null_fit = systemfit(null_system, data = df, method = "SUR")
+summary(null_fit)
+lrtest_obj = lrtest(null_fit, sur_fit)
+lrtest_obj
+```
+
+Let us now test joint balance manually. We will be testing the following joint hypotheses:
+
+$H_0 : $
+
+$H_1 : $
+
+```{r}
+n = dim(df)[1]
+cov_mat = matrix(0, 10, 10)
+df_opvs = df[,-c(1,10)]
+for (i in 1:dim(cov_mat)[1]) {
+  for (j in 1:dim(cov_mat)[2]) {
+    u_i = as.matrix(df_opvs[,i] - (df[,1] * coefficients[i] + intercepts[i]))
+    u_j = as.matrix(df_opvs[,j] - (df[,1] * coefficients[j] + intercepts[j]))
+    cov_mat[i,j] = t(u_i) %*% u_j / (n - 2)
+  }
+}
+cov_mat
+null_cov_mat = matrix(0, 10, 10)
+null_coeffs = c()
+for (i in opvs) {
+  null_formula = formula(paste(i, " ~ ", 1))
+  null_lm_model = lm(null_formula, data = df)
+  null_summary_coeffs = summary(null_lm_model)$coefficients
+  null_coeffs = c(null_coeffs, null_summary_coeffs[1,1])
+}
+for (i in 1:dim(null_cov_mat)[1]) {
+  for (j in 1:dim(null_cov_mat)[2]) {
+    u_i = as.matrix(df_opvs[,i] - null_coeffs[i])
+    u_j = as.matrix(df_opvs[,j] - null_coeffs[j])
+    null_cov_mat[i,j] = t(u_i) %*% u_j / (n - 1)
+  }
+}
+null_cov_mat
+lr_test_stat = (n - 2) * (log(norm(null_cov_mat)) - log(norm(cov_mat)))
+chi_sq_test_stat = -2 * lr_test_stat * 10
+chi_sq_test_stat
+pchisq(chi_sq_test_stat, df = 10, lower.tail = FALSE)
+```
+
